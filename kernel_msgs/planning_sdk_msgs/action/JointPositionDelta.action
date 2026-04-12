@@ -1,0 +1,11 @@
+builtin_interfaces/Time timestamp
+string[] name
+float32[] position_delta
+uint16 velocity
+---
+builtin_interfaces/Time timestamp
+builtin_interfaces/Duration planning_time
+uint16 error_code
+---
+builtin_interfaces/Time timestamp
+uint16 process_status

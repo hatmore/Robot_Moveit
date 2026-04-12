@@ -1,0 +1,7 @@
+builtin_interfaces/Time timestamp
+string[] joint_names        # 要查询的关节名称，空数组表示获取所有关节
+---
+builtin_interfaces/Time timestamp
+planning_sdk_msgs/JointLimit[] limits
+uint16 error_code           # 0=成功, 1=关节不存在, 2=其他错误
+string error_message

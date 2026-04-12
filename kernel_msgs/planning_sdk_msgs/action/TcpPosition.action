@@ -1,0 +1,10 @@
+uint16 rotation_style # 0: 外旋 1: 内旋(XYZ) 2: 内旋(ZYX)
+geometry_msgs/PoseStamped pose
+uint16 velocity
+---
+builtin_interfaces/Time timestamp
+builtin_interfaces/Duration planning_time
+uint16 error_code
+---
+builtin_interfaces/Time timestamp
+uint16 process_status

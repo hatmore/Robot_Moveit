@@ -1,0 +1,3 @@
+builtin_interfaces/Time timestamp
+string joint_name
+int16 velocity

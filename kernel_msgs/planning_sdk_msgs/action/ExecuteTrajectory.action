@@ -1,0 +1,9 @@
+builtin_interfaces/Time timestamp
+string trajectory_file
+uint16 velocity
+---
+builtin_interfaces/Time timestamp
+uint16 error_code
+---
+builtin_interfaces/Time timestamp
+uint16 process_status

@@ -1,0 +1,15 @@
+builtin_interfaces/Time timestamp
+string trajectory_file # 绝对路径，如果为空则不需要存
+planning_sdk_msgs/TcpAction[] tcp_actions
+uint16 global_velocity
+bool is_use_start_joint_configuration
+sensor_msgs/JointState start_joint_configuration
+---
+builtin_interfaces/Time timestamp
+builtin_interfaces/Duration planning_time
+bool had_singular
+sensor_msgs/JointState end_joint_configuration
+uint16 error_code
+---
+builtin_interfaces/Time timestamp
+uint16 process_status

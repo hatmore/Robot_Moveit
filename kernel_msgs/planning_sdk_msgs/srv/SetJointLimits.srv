@@ -1,0 +1,6 @@
+builtin_interfaces/Time timestamp
+planning_sdk_msgs/JointLimit[] limits
+---
+builtin_interfaces/Time timestamp
+uint16 error_code           # 0=成功, 1=关节不存在, 2=超出硬限位, 3=其他错误
+string error_message

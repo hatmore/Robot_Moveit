@@ -1,0 +1,10 @@
+uint8 index     #led序号：1-2（1是灯带，2为警示灯）
+uint8 mode     #0为默认（初始化），1为常量，2为闪烁
+uint8 brightness #0-10亮度
+uint8 period    #100毫秒为单位。仅在mode = 2时候生效
+uint8 r_solid
+uint8 g_solid
+uint8 b_solid
+---
+uint8 success
+string message
