@@ -1,0 +1,10 @@
+ros__parameters:
+  capabilities:
+    - move_group/MoveGroupCartesianPathCapability
+    - move_group/MoveGroupKinematicsCapability
+    - move_group/MoveGroupPlanningCapability
+    - move_group/MoveGroupSequenceAction
+  default_planning_pipeline: pilz_industrial_motion_planner
+  planning_pipelines:
+    - pilz_industrial_motion_planner
+    - ompl

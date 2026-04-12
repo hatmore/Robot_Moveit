@@ -1,0 +1,36 @@
+# 1. 核心：指定 C++ 规划器插件 (之前缺少这行导致崩溃)
+planning_plugin: "pilz_industrial_motion_planner/CommandPlanner"
+
+# 2. 适配器：Pilz 通常不需要复杂的适配器，但必须显式声明为空，否则可能报错
+request_adapters: ""
+
+# 3. 规划组配置 (注意：不需要顶层的 planning_pipelines 缩进)
+left_arm_group:
+  default_planner_config: PTP
+  planner_configs:
+    - PTP
+    - LIN
+    - CIRC
+
+right_arm_group:
+  default_planner_config: PTP
+  planner_configs:
+    - PTP
+    - LIN
+    - CIRC
+
+# 4. 具体算法参数配置
+PTP:
+  planner_id: PTP
+  max_velocity_scaling_factor: 0.3
+  max_acceleration_scaling_factor: 0.3
+
+LIN:
+  planner_id: LIN
+  max_velocity_scaling_factor: 0.2
+  max_acceleration_scaling_factor: 0.2
+
+CIRC:
+  planner_id: CIRC
+  max_velocity_scaling_factor: 0.2
+  max_acceleration_scaling_factor: 0.2

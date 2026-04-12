@@ -1,0 +1,8 @@
+planning_plugin: pilz_industrial_motion_planner/CommandPlanner
+
+planning_pipelines:
+  - name: pilz_industrial_motion_planner  
+    planner_ids: [PTP, LIN, CIRC] 
+
+
+default_planning_pipeline: pilz_industrial_motion_planner

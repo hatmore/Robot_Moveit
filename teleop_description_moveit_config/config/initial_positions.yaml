@@ -1,0 +1,15 @@
+initial_positions:
+  left_elbow_joint: 1.7899980545043945
+  left_shoulder_pitch_joint: -2.9599971771240234
+  left_shoulder_roll_joint: 0.3600008487701416
+  left_shoulder_yaw_joint: 1.1799991130828857
+  left_wrist_pitch_joint: -0.6100012063980103
+  left_wrist_roll_joint: 2.2499992847442627
+  left_wrist_yaw_joint: -0.44999897480010986
+  right_elbow_joint: 1.5711650848388672
+  right_shoulder_pitch_joint: -0.7855348587036133
+  right_shoulder_roll_joint: 0.3605794310569763
+  right_shoulder_yaw_joint: 0.34990930557250977
+  right_wrist_pitch_joint: 0.8726179599761963
+  right_wrist_roll_joint: -0.2616548538208008
+  right_wrist_yaw_joint: -0.0006585121154785156

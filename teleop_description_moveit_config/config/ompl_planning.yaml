@@ -1,0 +1,32 @@
+# config/ompl_planning.yaml
+planning_plugin: ompl_interface/OMPLPlanner
+request_adapters: default_planner_request_adapters/AddTimeOptimalParameterization
+
+left_arm_group:
+  planner_configs:
+    - RRTConnect
+    - RRTstar
+    - LBKPIECE
+
+right_arm_group:
+  planner_configs:
+    - RRTConnect
+    - RRTstar
+    - LBKPIECE
+
+RRTConnect:
+  type: geometric::RRTConnect
+  range: 0.0
+  goal_bias: 0.05
+
+RRTstar:
+  type: geometric::RRTstar
+  range: 0.0
+  goal_bias: 0.05
+  delay_collision_checking: true
+
+LBKPIECE:
+  type: geometric::LBKPIECE1
+  range: 0.0
+  border_fraction: 0.9
+  min_valid_path_fraction: 0.5

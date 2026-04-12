@@ -1,0 +1,43 @@
+# 完整正确的Pilz规划器配置
+pilz_industrial_motion_planner:
+  plan_planner_plugins:
+    lin:
+      type: "pilz_industrial_motion_planner/CommandPlanner"
+    ptp:
+      type: "pilz_industrial_motion_planner/CommandPlanner"
+    circ:
+      type: "pilz_industrial_motion_planner/CommandPlanner"
+  
+  # 运动规划组配置
+  planning_groups:
+    left_arm_group:
+      default_planner: LIN
+      planners:
+        LIN:
+          type: pilz_industrial_motion_planner/LINPlanner
+          max_velocity_scaling_factor: 0.2
+          max_acceleration_scaling_factor: 0.2
+        PTP:
+          type: pilz_industrial_motion_planner/PTPPlanner
+          max_velocity_scaling_factor: 0.3
+          max_acceleration_scaling_factor: 0.3
+        CIRC:
+          type: pilz_industrial_motion_planner/CIRCPlanner
+          max_velocity_scaling_factor: 0.2
+          max_acceleration_scaling_factor: 0.2
+    
+    right_arm_group:
+      default_planner: PTP
+      planners:
+        LIN:
+          type: pilz_industrial_motion_planner/LINPlanner
+          max_velocity_scaling_factor: 0.2
+          max_acceleration_scaling_factor: 0.2
+        PTP:
+          type: pilz_industrial_motion_planner/PTPPlanner
+          max_velocity_scaling_factor: 0.3
+          max_acceleration_scaling_factor: 0.3
+        CIRC:
+          type: pilz_industrial_motion_planner/CIRCPlanner
+          max_velocity_scaling_factor: 0.2
+          max_acceleration_scaling_factor: 0.2

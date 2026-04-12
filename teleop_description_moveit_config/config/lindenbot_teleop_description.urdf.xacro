@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="lindenbot_teleop_description">
+    <xacro:arg name="initial_positions_file" default="initial_positions.yaml" />
+
+    <!-- Import lindenbot_teleop_description urdf file -->
+    <xacro:include filename="$(find linden_robot_description)/teleop_description/urdf/LindenBot_Teleop_description.xacro" />
+
+    <!-- Import control_xacro -->
+    <xacro:include filename="lindenbot_teleop_description.ros2_control.xacro" />
+
+
+    <xacro:lindenbot_teleop_description_ros2_control name="FakeSystem" initial_positions_file="$(arg initial_positions_file)"/>
+
+</robot>
