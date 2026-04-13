@@ -97,18 +97,23 @@ private:
     std::map<std::string, int> singularity_warning_count_;
     std::map<std::string, int8_t> last_servo_status_;
 
+    // 100Hz 定时发布缓存（各臂独立，mutex 保护）
+    geometry_msgs::msg::TwistStamped pending_left_tcp_twist_;
+    geometry_msgs::msg::TwistStamped pending_right_tcp_twist_;
+    std::mutex pending_tcp_mutex_left_;
+    std::mutex pending_tcp_mutex_right_;
+
     void leftTcpVelocityCallback(const planning_sdk_msgs::msg::TcpVelocityOnce::SharedPtr msg);
     void rightTcpVelocityCallback(const planning_sdk_msgs::msg::TcpVelocityOnce::SharedPtr msg);
     void processTcpVelocityCommand(
         const planning_sdk_msgs::msg::TcpVelocityOnce::SharedPtr msg,
-        const std::string& arm_side,
-        const rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr& publisher);
+        const std::string& arm_side);
     void servoStatusCallback(const std_msgs::msg::Int8::SharedPtr msg, const std::string& arm_side);
     void checkTcpVelConnections();
-    void decelCheckCallback();
+    void publishTimerCallback();  // 合并 decel + publish，100Hz
 
     rclcpp::TimerBase::SharedPtr tcp_vel_connection_timer_;
-    rclcpp::TimerBase::SharedPtr decel_timer_;
+    rclcpp::TimerBase::SharedPtr publish_timer_;
 
     // ========== 关节速度控制 ==========
     rclcpp::Subscription<planning_sdk_msgs::msg::JointVelocityOnce>::SharedPtr joint_vel_sub_;
