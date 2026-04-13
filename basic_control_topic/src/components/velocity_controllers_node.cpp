@@ -112,10 +112,10 @@ VelocityControllersNode::VelocityControllersNode(
         std::chrono::seconds(3),
         std::bind(&VelocityControllersNode::checkTcpVelConnections, this));
 
-    // 减速检测定时器，10ms 周期与 servo 100Hz 对齐
-    decel_timer_ = this->create_wall_timer(
+    // 100Hz 定时发布（含减速逻辑）
+    publish_timer_ = this->create_wall_timer(
         std::chrono::milliseconds(10),
-        std::bind(&VelocityControllersNode::decelCheckCallback, this));
+        std::bind(&VelocityControllersNode::publishTimerCallback, this));
 
     // ========== 关节速度控制 ==========
     initializeJointConfiguration();
@@ -276,147 +276,92 @@ void VelocityControllersNode::waitForJointStates(double timeout_sec)
 // ============================================================================
 void VelocityControllersNode::leftTcpVelocityCallback(const planning_sdk_msgs::msg::TcpVelocityOnce::SharedPtr msg)
 {
-    // 急停检查：拒绝处理命令
     if (shared_resources_ && shared_resources_->isEmergencyStopActive()) {
         RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
                              "Emergency stop active, rejecting left TCP velocity command");
         return;
     }
-
     if (!left_arm_publisher_connected_ || !left_tcp_vel_pub_) {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
-                             "左臂Servo节点未连接");
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "左臂Servo节点未连接");
         return;
     }
-    RCLCPP_INFO(this->get_logger(), "[上游原始] 左臂 linear(%.2f,%.2f,%.2f) angular(%.2f,%.2f,%.2f)",
-                msg->velocity.linear.x, msg->velocity.linear.y, msg->velocity.linear.z,
-                msg->velocity.angular.x, msg->velocity.angular.y, msg->velocity.angular.z);
-
-    // 收到新命令时增加加速计数
     if (tcp_accel_step_count_["left"] < decel_steps_) {
         tcp_accel_step_count_["left"]++;
     }
-
-    processTcpVelocityCommand(msg, "left", left_tcp_vel_pub_);
+    processTcpVelocityCommand(msg, "left");
 }
 
 void VelocityControllersNode::rightTcpVelocityCallback(const planning_sdk_msgs::msg::TcpVelocityOnce::SharedPtr msg)
 {
-    // 急停检查：拒绝处理命令
     if (shared_resources_ && shared_resources_->isEmergencyStopActive()) {
         RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
                              "Emergency stop active, rejecting right TCP velocity command");
         return;
     }
-
     if (!right_arm_publisher_connected_ || !right_tcp_vel_pub_) {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
-                             "右臂Servo节点未连接");
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "右臂Servo节点未连接");
         return;
     }
-
-    // 收到新命令时增加加速计数
     if (tcp_accel_step_count_["right"] < decel_steps_) {
         tcp_accel_step_count_["right"]++;
     }
-
-    processTcpVelocityCommand(msg, "right", right_tcp_vel_pub_);
+    processTcpVelocityCommand(msg, "right");
 }
 
 void VelocityControllersNode::processTcpVelocityCommand(
     const planning_sdk_msgs::msg::TcpVelocityOnce::SharedPtr msg,
-    const std::string& arm_side,
-    const rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr& publisher)
+    const std::string& arm_side)
 {
-    tcp_repeated_count_[arm_side]++;
-
     if (singularity_warning_count_[arm_side] > 5) {
         RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
                               "%s机械臂持续处于奇异点附近，请手动调整机械臂姿态", arm_side.c_str());
         return;
     }
 
-    try {
-        // 检测是否从静止状态启动（减速完成后）
-        bool was_idle = (last_tcp_cmd_time_.find(arm_side) == last_tcp_cmd_time_.end()) ||
-                        (is_tcp_decelerating_[arm_side] && tcp_decel_step_count_[arm_side] >= decel_steps_);
-
-        if (was_idle) {
-            tcp_accel_step_count_[arm_side] = 0;
-            is_tcp_decelerating_[arm_side] = false;
-            tcp_decel_step_count_[arm_side] = 0;
-        }
-
-        // 计算加速比例（不再在这里增加计数，由回调函数负责）
-        double accel_ratio = 1.0;
-        if (tcp_accel_step_count_[arm_side] < decel_steps_) {
-            accel_ratio = static_cast<double>(tcp_accel_step_count_[arm_side]) / decel_steps_;
-        }
-
-        auto twist_msg = std::make_unique<geometry_msgs::msg::TwistStamped>();
-        twist_msg->header.stamp = this->now();
-        twist_msg->header.frame_id = "base_link";
-
-        // 输入范围 -100~100，归一化到 -1~1 再乘以最大速度
-        constexpr double kVelocityScale = 1.0 / 100.0;
-        twist_msg->twist = msg->velocity;
-
-        // 限幅到 -100~100 范围
-        auto clamp = [](double v) { return std::max(-100.0, std::min(100.0, v)); };
-        bool clamped = (std::abs(twist_msg->twist.linear.x) > 100 || std::abs(twist_msg->twist.linear.y) > 100 ||
-                        std::abs(twist_msg->twist.linear.z) > 100 || std::abs(twist_msg->twist.angular.x) > 100 ||
-                        std::abs(twist_msg->twist.angular.y) > 100 || std::abs(twist_msg->twist.angular.z) > 100);
-        twist_msg->twist.linear.x = clamp(twist_msg->twist.linear.x);
-        twist_msg->twist.linear.y = clamp(twist_msg->twist.linear.y);
-        twist_msg->twist.linear.z = clamp(twist_msg->twist.linear.z);
-        twist_msg->twist.angular.x = clamp(twist_msg->twist.angular.x);
-        twist_msg->twist.angular.y = clamp(twist_msg->twist.angular.y);
-        twist_msg->twist.angular.z = clamp(twist_msg->twist.angular.z);
-        if (clamped) {
-            RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-                "%s臂TCP速度超出范围[-100,100]，已限幅", arm_side.c_str());
-        }
-
-        twist_msg->twist.linear.x *= kVelocityScale * max_linear_velocity_ * accel_ratio;
-        twist_msg->twist.linear.y *= kVelocityScale * max_linear_velocity_ * accel_ratio;
-        twist_msg->twist.linear.z *= kVelocityScale * max_linear_velocity_ * accel_ratio;
-        twist_msg->twist.angular.x *= kVelocityScale * max_angular_velocity_ * accel_ratio;
-        twist_msg->twist.angular.y *= kVelocityScale * max_angular_velocity_ * accel_ratio;
-        twist_msg->twist.angular.z *= kVelocityScale * max_angular_velocity_ * accel_ratio;
-
-        // 应用位置限位缩放
-        double pos_scale = computePositionLimitScale();
-        if (pos_scale < 1.0) {
-            RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-                "%s臂接近关节位置限位，速度缩放: %.2f", arm_side.c_str(), pos_scale);
-        }
-        twist_msg->twist.linear.x  *= pos_scale;
-        twist_msg->twist.linear.y  *= pos_scale;
-        twist_msg->twist.linear.z  *= pos_scale;
-        twist_msg->twist.angular.x *= pos_scale;
-        twist_msg->twist.angular.y *= pos_scale;
-        twist_msg->twist.angular.z *= pos_scale;
-
-        RCLCPP_INFO(this->get_logger(), "[下发控制] %s臂 linear(%.4f,%.4f,%.4f) angular(%.4f,%.4f,%.4f)",
-                    arm_side.c_str(),
-                    twist_msg->twist.linear.x, twist_msg->twist.linear.y, twist_msg->twist.linear.z,
-                    twist_msg->twist.angular.x, twist_msg->twist.angular.y, twist_msg->twist.angular.z);
-
-        publisher->publish(std::move(twist_msg));
-
-        // 记录最后一次指令
-        last_tcp_cmd_time_[arm_side] = this->now();
-        last_tcp_twist_[arm_side] = msg->velocity;
+    bool was_idle = (last_tcp_cmd_time_.find(arm_side) == last_tcp_cmd_time_.end()) ||
+                    (is_tcp_decelerating_[arm_side] && tcp_decel_step_count_[arm_side] >= decel_steps_);
+    if (was_idle) {
+        tcp_accel_step_count_[arm_side] = 0;
         is_tcp_decelerating_[arm_side] = false;
         tcp_decel_step_count_[arm_side] = 0;
+    }
 
-        if (tcp_repeated_count_[arm_side] % 10 == 0 && verbose_logging_) {
-            RCLCPP_INFO(this->get_logger(), "成功发布%s臂Servo速度命令", arm_side.c_str());
-        }
+    double accel_ratio = (tcp_accel_step_count_[arm_side] < decel_steps_)
+        ? static_cast<double>(tcp_accel_step_count_[arm_side]) / decel_steps_ : 1.0;
+
+    constexpr double kVelocityScale = 1.0 / 100.0;
+    auto clamp = [](double v) { return std::max(-100.0, std::min(100.0, v)); };
+
+    geometry_msgs::msg::TwistStamped twist;
+    twist.header.frame_id = "base_link";
+    twist.twist.linear.x  = clamp(msg->velocity.linear.x)  * kVelocityScale * max_linear_velocity_  * accel_ratio;
+    twist.twist.linear.y  = clamp(msg->velocity.linear.y)  * kVelocityScale * max_linear_velocity_  * accel_ratio;
+    twist.twist.linear.z  = clamp(msg->velocity.linear.z)  * kVelocityScale * max_linear_velocity_  * accel_ratio;
+    twist.twist.angular.x = clamp(msg->velocity.angular.x) * kVelocityScale * max_angular_velocity_ * accel_ratio;
+    twist.twist.angular.y = clamp(msg->velocity.angular.y) * kVelocityScale * max_angular_velocity_ * accel_ratio;
+    twist.twist.angular.z = clamp(msg->velocity.angular.z) * kVelocityScale * max_angular_velocity_ * accel_ratio;
+
+    double pos_scale = computePositionLimitScale();
+    twist.twist.linear.x  *= pos_scale;
+    twist.twist.linear.y  *= pos_scale;
+    twist.twist.linear.z  *= pos_scale;
+    twist.twist.angular.x *= pos_scale;
+    twist.twist.angular.y *= pos_scale;
+    twist.twist.angular.z *= pos_scale;
+
+    // 写入对应臂缓存，定时器负责发布
+    if (arm_side == "left") {
+        std::lock_guard<std::mutex> lock(pending_tcp_mutex_left_);
+        pending_left_tcp_twist_ = twist;
+    } else {
+        std::lock_guard<std::mutex> lock(pending_tcp_mutex_right_);
+        pending_right_tcp_twist_ = twist;
     }
-    catch (const std::exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "处理%s臂速度命令时发生错误: %s", arm_side.c_str(), e.what());
-    }
+
+    last_tcp_cmd_time_[arm_side] = this->now();
+    last_tcp_twist_[arm_side] = msg->velocity;
+    is_tcp_decelerating_[arm_side] = false;
+    tcp_decel_step_count_[arm_side] = 0;
 }
 
 void VelocityControllersNode::servoStatusCallback(const std_msgs::msg::Int8::SharedPtr msg, const std::string& arm_side)
@@ -482,48 +427,78 @@ void VelocityControllersNode::checkTcpVelConnections()
     check_conn("右", right_tcp_vel_pub_, right_arm_publisher_connected_);
 }
 
-void VelocityControllersNode::decelCheckCallback()
+void VelocityControllersNode::publishTimerCallback()
 {
-    auto check_and_decel = [this](const std::string& arm_side,
-                                   const rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr& publisher,
-                                   bool connected) {
-        if (!publisher || !connected) return;
-        if (last_tcp_cmd_time_.find(arm_side) == last_tcp_cmd_time_.end()) return;
+    auto now = this->now();
+    constexpr double kVelocityScale = 1.0 / 100.0;
 
-        double elapsed = (this->now() - last_tcp_cmd_time_[arm_side]).seconds();
-
-        // 指令超时且还没开始减速
-        if (elapsed > command_timeout_ && !is_tcp_decelerating_[arm_side] && tcp_decel_step_count_[arm_side] == 0) {
-            is_tcp_decelerating_[arm_side] = true;
-            tcp_decel_step_count_[arm_side] = 0;
-            RCLCPP_INFO(this->get_logger(), "%s臂指令超时，开始平滑停车", arm_side.c_str());
+    // ---- 左臂 ----
+    if (left_tcp_vel_pub_ && left_arm_publisher_connected_) {
+        if (last_tcp_cmd_time_.count("left")) {
+            double elapsed = (now - last_tcp_cmd_time_["left"]).seconds();
+            if (elapsed > command_timeout_ && !is_tcp_decelerating_["left"] && tcp_decel_step_count_["left"] == 0) {
+                is_tcp_decelerating_["left"] = true;
+                RCLCPP_INFO(this->get_logger(), "左臂指令超时，开始平滑停车");
+            }
         }
 
-        // 正在减速中，发送递减速度
-        if (is_tcp_decelerating_[arm_side] && tcp_decel_step_count_[arm_side] < decel_steps_) {
-            tcp_decel_step_count_[arm_side]++;
-            double ratio = 1.0 - static_cast<double>(tcp_decel_step_count_[arm_side]) / decel_steps_;
+        geometry_msgs::msg::TwistStamped out;
+        out.header.stamp = now;
+        out.header.frame_id = "base_link";
 
-            auto twist_msg = std::make_unique<geometry_msgs::msg::TwistStamped>();
-            twist_msg->header.stamp = this->now();
-            twist_msg->header.frame_id = "base_link";
-
-            constexpr double kVelocityScale = 1.0 / 100.0;
-            twist_msg->twist.linear.x = last_tcp_twist_[arm_side].linear.x * kVelocityScale * max_linear_velocity_ * ratio;
-            twist_msg->twist.linear.y = last_tcp_twist_[arm_side].linear.y * kVelocityScale * max_linear_velocity_ * ratio;
-            twist_msg->twist.linear.z = last_tcp_twist_[arm_side].linear.z * kVelocityScale * max_linear_velocity_ * ratio;
-            twist_msg->twist.angular.x = last_tcp_twist_[arm_side].angular.x * kVelocityScale * max_angular_velocity_ * ratio;
-            twist_msg->twist.angular.y = last_tcp_twist_[arm_side].angular.y * kVelocityScale * max_angular_velocity_ * ratio;
-            twist_msg->twist.angular.z = last_tcp_twist_[arm_side].angular.z * kVelocityScale * max_angular_velocity_ * ratio;
-
-            publisher->publish(std::move(twist_msg));
-        } else if (is_tcp_decelerating_[arm_side] && tcp_decel_step_count_[arm_side] >= decel_steps_) {
-            is_tcp_decelerating_[arm_side] = false;
+        if (is_tcp_decelerating_["left"] && tcp_decel_step_count_["left"] < decel_steps_) {
+            tcp_decel_step_count_["left"]++;
+            double ratio = 1.0 - static_cast<double>(tcp_decel_step_count_["left"]) / decel_steps_;
+            out.twist.linear.x  = last_tcp_twist_["left"].linear.x  * kVelocityScale * max_linear_velocity_  * ratio;
+            out.twist.linear.y  = last_tcp_twist_["left"].linear.y  * kVelocityScale * max_linear_velocity_  * ratio;
+            out.twist.linear.z  = last_tcp_twist_["left"].linear.z  * kVelocityScale * max_linear_velocity_  * ratio;
+            out.twist.angular.x = last_tcp_twist_["left"].angular.x * kVelocityScale * max_angular_velocity_ * ratio;
+            out.twist.angular.y = last_tcp_twist_["left"].angular.y * kVelocityScale * max_angular_velocity_ * ratio;
+            out.twist.angular.z = last_tcp_twist_["left"].angular.z * kVelocityScale * max_angular_velocity_ * ratio;
+            left_tcp_vel_pub_->publish(out);
+        } else if (is_tcp_decelerating_["left"] && tcp_decel_step_count_["left"] >= decel_steps_) {
+            is_tcp_decelerating_["left"] = false;
+            last_tcp_cmd_time_.erase("left");  // 清除，防止定时器继续发缓存
+        } else if (!is_tcp_decelerating_["left"] && last_tcp_cmd_time_.count("left")) {
+            std::lock_guard<std::mutex> lock(pending_tcp_mutex_left_);
+            pending_left_tcp_twist_.header.stamp = now;
+            left_tcp_vel_pub_->publish(pending_left_tcp_twist_);
         }
-    };
+    }
 
-    check_and_decel("left", left_tcp_vel_pub_, left_arm_publisher_connected_);
-    check_and_decel("right", right_tcp_vel_pub_, right_arm_publisher_connected_);
+    // ---- 右臂 ----
+    if (right_tcp_vel_pub_ && right_arm_publisher_connected_) {
+        if (last_tcp_cmd_time_.count("right")) {
+            double elapsed = (now - last_tcp_cmd_time_["right"]).seconds();
+            if (elapsed > command_timeout_ && !is_tcp_decelerating_["right"] && tcp_decel_step_count_["right"] == 0) {
+                is_tcp_decelerating_["right"] = true;
+                RCLCPP_INFO(this->get_logger(), "右臂指令超时，开始平滑停车");
+            }
+        }
+
+        geometry_msgs::msg::TwistStamped out;
+        out.header.stamp = now;
+        out.header.frame_id = "base_link";
+
+        if (is_tcp_decelerating_["right"] && tcp_decel_step_count_["right"] < decel_steps_) {
+            tcp_decel_step_count_["right"]++;
+            double ratio = 1.0 - static_cast<double>(tcp_decel_step_count_["right"]) / decel_steps_;
+            out.twist.linear.x  = last_tcp_twist_["right"].linear.x  * kVelocityScale * max_linear_velocity_  * ratio;
+            out.twist.linear.y  = last_tcp_twist_["right"].linear.y  * kVelocityScale * max_linear_velocity_  * ratio;
+            out.twist.linear.z  = last_tcp_twist_["right"].linear.z  * kVelocityScale * max_linear_velocity_  * ratio;
+            out.twist.angular.x = last_tcp_twist_["right"].angular.x * kVelocityScale * max_angular_velocity_ * ratio;
+            out.twist.angular.y = last_tcp_twist_["right"].angular.y * kVelocityScale * max_angular_velocity_ * ratio;
+            out.twist.angular.z = last_tcp_twist_["right"].angular.z * kVelocityScale * max_angular_velocity_ * ratio;
+            right_tcp_vel_pub_->publish(out);
+        } else if (is_tcp_decelerating_["right"] && tcp_decel_step_count_["right"] >= decel_steps_) {
+            is_tcp_decelerating_["right"] = false;
+            last_tcp_cmd_time_.erase("right");  // 清除，防止定时器继续发缓存
+        } else if (!is_tcp_decelerating_["right"] && last_tcp_cmd_time_.count("right")) {
+            std::lock_guard<std::mutex> lock(pending_tcp_mutex_right_);
+            pending_right_tcp_twist_.header.stamp = now;
+            right_tcp_vel_pub_->publish(pending_right_tcp_twist_);
+        }
+    }
 }
 
 // ============================================================================
@@ -633,7 +608,7 @@ void VelocityControllersNode::jointVelocityCallback(const planning_sdk_msgs::msg
             left_msg->joint_names.push_back(jname);
             left_msg->velocities.push_back(joint_velocities_[jname]);
         }
-        left_msg->duration = 0.02;
+        left_msg->duration = 0.01;
         left_joint_vel_pub_->publish(std::move(left_msg));
     } else if (arm_side == "right" && right_arm_joint_publisher_connected_ && right_joint_vel_pub_) {
         auto right_msg = std::make_unique<control_msgs::msg::JointJog>();
@@ -643,7 +618,7 @@ void VelocityControllersNode::jointVelocityCallback(const planning_sdk_msgs::msg
             right_msg->joint_names.push_back(jname);
             right_msg->velocities.push_back(joint_velocities_[jname]);
         }
-        right_msg->duration = 0.02;
+        right_msg->duration = 0.01;
         right_joint_vel_pub_->publish(std::move(right_msg));
     }
 }
