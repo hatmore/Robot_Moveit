@@ -1,0 +1,91 @@
+# ============================================================================
+# MPC Position Controller - ros2_controllers.yaml 替换示例
+# ============================================================================
+#
+# 使用方法：将此文件内容合并到 ros2_controllers.yaml 中，
+# 或在 launch 文件中替换 ros2_controllers.yaml 的路径。
+#
+# 与原 JointTrajectoryController 的区别：
+#   - type 改为 mpc_position_controller/MPCPositionController
+#   - 新增 mpc.* 和 limits.* 参数
+#   - joints / command_interfaces / state_interfaces 保持不变
+# ============================================================================
+
+controller_manager:
+  ros__parameters:
+    update_rate: 500  # Hz
+
+    left_arm_group_controller:
+      type: mpc_position_controller/MPCPositionController
+
+    right_arm_group_controller:
+      type: mpc_position_controller/MPCPositionController
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+# ---- 左臂 ----
+left_arm_group_controller:
+  ros__parameters:
+    joints:
+      - left_shoulder_pitch_joint
+      - left_shoulder_roll_joint
+      - left_shoulder_yaw_joint
+      - left_elbow_joint
+      - left_wrist_roll_joint
+      - left_wrist_yaw_joint
+      - left_wrist_pitch_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+
+    mpc:
+      horizon: 10
+      q_weight: 100.0
+      v_weight: 1.0
+      r_weight: 0.01
+      constraint_margin: 0.05
+      terminal_cost_multiplier: 3.0
+
+    limits:
+      # 与 URDF 一致的左臂关节位置限位 (rad)
+      q_min: [-4.36332, -0.733038, -2.7925268, -2.338741, -2.8448867, -0.959931, -1.570796]
+      q_max: [ 1.22173,  2.879793,  2.7925268,  2.338741,  2.8448867,  0.959931,  1.570796]
+      # 速度限位 (rad/s): shoulder/elbow=3.0, wrist=4.0
+      v_max: [3.0, 3.0, 3.0, 3.0, 4.0, 4.0, 4.0]
+      # 加速度限位 (rad/s^2): shoulder/elbow=9.0, wrist=12.0
+      a_max: [9.0, 9.0, 9.0, 9.0, 12.0, 12.0, 12.0]
+
+# ---- 右臂 ----
+right_arm_group_controller:
+  ros__parameters:
+    joints:
+      - right_shoulder_pitch_joint
+      - right_shoulder_roll_joint
+      - right_shoulder_yaw_joint
+      - right_elbow_joint
+      - right_wrist_roll_joint
+      - right_wrist_yaw_joint
+      - right_wrist_pitch_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+
+    mpc:
+      horizon: 10
+      q_weight: 100.0
+      v_weight: 1.0
+      r_weight: 0.01
+      constraint_margin: 0.05
+      terminal_cost_multiplier: 3.0
+
+    limits:
+      # 右臂限位与左臂镜像
+      q_min: [-1.22173, -2.879793, -2.7925268, -2.338741, -2.8448867, -0.959931, -1.570796]
+      q_max: [ 4.36332,  0.733038,  2.7925268,  2.338741,  2.8448867,  0.959931,  1.570796]
+      v_max: [3.0, 3.0, 3.0, 3.0, 4.0, 4.0, 4.0]
+      a_max: [9.0, 9.0, 9.0, 9.0, 12.0, 12.0, 12.0]

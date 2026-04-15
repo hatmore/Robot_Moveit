@@ -1,0 +1,10 @@
+<library path="mpc_position_controller">
+  <class name="mpc_position_controller/MPCPositionController"
+         type="mpc_position_controller::MPCPositionController"
+         base_class_type="controller_interface::ControllerInterface">
+    <description>
+      Position-level Model Predictive Controller using condensed QP formulation.
+      Drop-in replacement for JointTrajectoryController.
+    </description>
+  </class>
+</library>
