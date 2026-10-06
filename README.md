@@ -1,3 +1,5 @@
+**中文** | [English](README.en.md)
+
 # Robot_Moveit
 
 双臂机器人 **ROS 2 Humble + MoveIt 2** 控制工作空间。在 MoveIt 之上封装了一层稳定的 ROS 接口（action / service / topic），供上层任务系统下发预设位姿、关节/末端移动、轨迹执行、末端速度伺服等任务，并提供模块心跳监控、左右臂独立调度、仿真/实机接口切换等系统能力。规划器同时支持 **OMPL**、**Pilz 工业运动规划器** 与 **MoveIt Servo**。
