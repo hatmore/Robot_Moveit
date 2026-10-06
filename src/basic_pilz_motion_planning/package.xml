@@ -4,7 +4,7 @@
   <name>basic_pilz_motion_planning</name>
   <version>0.0.0</version>
   <description>Basic Pilz motion planning examples for lindenbot</description>
-  <maintainer email="robot@todo.todo">robot</maintainer>
+  <maintainer email="867049930@qq.com">hatmore</maintainer>
   <license>TODO: License declaration</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

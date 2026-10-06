@@ -3,7 +3,7 @@
   <name>mpc_position_controller</name>
   <version>0.1.0</version>
   <description>Position-level MPC controller plugin for ros2_control</description>
-  <maintainer email="dev@example.com">dev</maintainer>
+  <maintainer email="867049930@qq.com">hatmore</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

@@ -1,0 +1,28 @@
+# colcon / ROS 2 workspace
+build/
+install/
+log/
+local_compile_output/
+x86_compile_output/
+arm64_compile_output/
+releases/
+.releases_backup/
+*.tar.gz
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# rosbag / data
+*.db3
+*.mcap
+csv_output/
+
+# IDE / OS
+.vscode/
+.idea/
+.cache/
+compile_commands.json
+.DS_Store
+Thumbs.db

@@ -3,7 +3,7 @@
 <package format="3">
   <name>planning_sdk_msgs</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Interfaces exposed by the planning layer: TCP / joint position, delta and trajectory actions, joint limits, frame registration and heartbeat.</description>
   <license>TODO: License declaration</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

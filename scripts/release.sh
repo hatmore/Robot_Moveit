@@ -10,7 +10,12 @@ RELEASES_DIR="${WS_DIR}/releases"
 
 # Artifactory 配置
 ARTIFACTORY_URL="https://artifacts.iflytek.com/artifactory/LDJQR-private-repo/CI_BUILD/linden_robot_moveit"
-ARTIFACTORY_AUTH="emJqaWFuZzpBS0NwQnNlMnpIYjRQZURMbkFXUDZlS2F0RWhUQ2Z2dlptUG81RGZXdTlSTlFCUzROTm13V3NUeHFGeUNoQ3ZXaVV5SDVLd252"
+# Basic Auth 令牌（base64 的 user:token），通过环境变量传入，禁止写死在仓库里
+ARTIFACTORY_AUTH="${ARTIFACTORY_AUTH:-}"
+if [ -z "${ARTIFACTORY_AUTH}" ]; then
+    echo "[ERROR] 请先设置环境变量 ARTIFACTORY_AUTH（base64 的 user:token）" >&2
+    exit 1
+fi
 
 # 颜色定义
 RED='\033[0;31m'
